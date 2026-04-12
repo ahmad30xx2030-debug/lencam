@@ -155,6 +155,19 @@ html, body {
     transform: scale(0.95);
 }
 
+/* Top Actions Group */
+.top-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.fullscreen-btn.active {
+    background: rgba(99, 102, 241, 0.2);
+    border-color: rgba(99, 102, 241, 0.4);
+    color: #818cf8;
+}
+
 /* ============================================
    Center – Controls Group
    ============================================ */

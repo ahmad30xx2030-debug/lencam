@@ -26,6 +26,9 @@
     const errorRetryBtn = document.getElementById('errorRetryBtn');
     const powerLabel    = powerBtn.querySelector('.power-label');
     const torchLabel    = torchBtn.querySelector('.torch-label');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const fsExpand      = fullscreenBtn.querySelector('.fs-expand');
+    const fsCompress    = fullscreenBtn.querySelector('.fs-compress');
 
     // ── State ──
     let stream       = null;
@@ -38,6 +41,7 @@
     function init() {
         powerBtn.addEventListener('click', toggleCamera);
         torchBtn.addEventListener('click', toggleTorch);
+        fullscreenBtn.addEventListener('click', toggleFullscreen);
         hideUIBtn.addEventListener('click', hideUI);
         restoreBtn.addEventListener('click', showUI);
         errorRetryBtn.addEventListener('click', () => {
@@ -45,13 +49,17 @@
             toggleCamera();
         });
 
+        // Listen for fullscreen changes (e.g. user presses Escape)
+        document.addEventListener('fullscreenchange', updateFullscreenIcon);
+        document.addEventListener('webkitfullscreenchange', updateFullscreenIcon);
+
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
             if (e.code === 'Space' || e.key === ' ') {
                 e.preventDefault();
                 toggleUI();
             }
-            if (e.code === 'Escape') {
+            if (e.code === 'Escape' && !document.fullscreenElement) {
                 if (uiHidden) showUI();
             }
             // F key toggles flash
@@ -251,6 +259,33 @@
         restoreBtn.classList.remove('visible');
         restoreBtn.style.opacity = '';
         uiHidden = false;
+    }
+
+    // ── Fullscreen ──
+    function toggleFullscreen() {
+        if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+            // Enter fullscreen
+            const el = document.documentElement;
+            if (el.requestFullscreen) {
+                el.requestFullscreen().catch(() => {});
+            } else if (el.webkitRequestFullscreen) {
+                el.webkitRequestFullscreen();
+            }
+        } else {
+            // Exit fullscreen
+            if (document.exitFullscreen) {
+                document.exitFullscreen().catch(() => {});
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            }
+        }
+    }
+
+    function updateFullscreenIcon() {
+        const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
+        fsExpand.style.display   = isFS ? 'none' : '';
+        fsCompress.style.display = isFS ? '' : 'none';
+        fullscreenBtn.classList.toggle('active', isFS);
     }
 
     // ── Error Handling ──
