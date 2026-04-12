@@ -84,6 +84,9 @@
         if ('ontouchstart' in window) {
             hintText.innerHTML = 'انقر مرتين لإخفاء/إظهار الواجهة';
         }
+
+        // Check fullscreen support
+        checkFullscreenSupport();
     }
 
     // ── Camera Toggle ──
@@ -98,12 +101,13 @@
     // ── Start Camera ──
     async function startCamera() {
         try {
-            // Request maximum resolution from the rear camera
+            // Request maximum resolution and 60fps from the rear camera
             const constraints = {
                 video: {
                     facingMode: { ideal: 'environment' },
                     width:  { ideal: 9999 },
                     height: { ideal: 9999 },
+                    frameRate: { ideal: 60 },
                 },
                 audio: false
             };
@@ -120,9 +124,10 @@
 
             // Update UI
             const settings = track.getSettings();
-            const w = settings.width  || '?';
-            const h = settings.height || '?';
-            resolutionText.textContent = `${w} × ${h}`;
+            const w   = settings.width  || '?';
+            const h   = settings.height || '?';
+            const fps = settings.frameRate ? Math.round(settings.frameRate) : '?';
+            resolutionText.textContent = `${w} × ${h} • ${fps}fps`;
 
             const label = track.label || '';
             if (label) {
@@ -262,14 +267,26 @@
     }
 
     // ── Fullscreen ──
+    function isFullscreen() {
+        return !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
+    }
+
     function toggleFullscreen() {
-        if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-            // Enter fullscreen
+        if (!isFullscreen()) {
+            // Enter fullscreen — try documentElement first, then body, then video
             const el = document.documentElement;
             if (el.requestFullscreen) {
-                el.requestFullscreen().catch(() => {});
+                el.requestFullscreen().catch(() => {
+                    // Fallback: try on body
+                    document.body.requestFullscreen && document.body.requestFullscreen().catch(() => {});
+                });
             } else if (el.webkitRequestFullscreen) {
                 el.webkitRequestFullscreen();
+            } else if (el.msRequestFullscreen) {
+                el.msRequestFullscreen();
+            } else if (video.webkitEnterFullscreen) {
+                // iOS Safari fallback — only works on video elements
+                video.webkitEnterFullscreen();
             }
         } else {
             // Exit fullscreen
@@ -277,15 +294,26 @@
                 document.exitFullscreen().catch(() => {});
             } else if (document.webkitExitFullscreen) {
                 document.webkitExitFullscreen();
+            } else if (document.msExitFullscreen) {
+                document.msExitFullscreen();
             }
         }
     }
 
     function updateFullscreenIcon() {
-        const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
+        const isFS = isFullscreen();
         fsExpand.style.display   = isFS ? 'none' : '';
         fsCompress.style.display = isFS ? '' : 'none';
         fullscreenBtn.classList.toggle('active', isFS);
+    }
+
+    // Check if any fullscreen API exists, hide button if not supported at all
+    function checkFullscreenSupport() {
+        const el = document.documentElement;
+        const supported = !!(el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen || video.webkitEnterFullscreen);
+        if (!supported) {
+            fullscreenBtn.style.display = 'none';
+        }
     }
 
     // ── Error Handling ──
