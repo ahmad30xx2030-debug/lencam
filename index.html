@@ -32,15 +32,28 @@
 
         <!-- Center controls -->
         <div class="center-controls">
-            <button class="power-btn" id="powerBtn">
-                <div class="power-ring">
-                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/>
-                        <line x1="12" y1="2" x2="12" y2="12"/>
-                    </svg>
-                </div>
-                <span class="power-label">تشغيل الكشاف</span>
-            </button>
+            <div class="controls-group">
+                <!-- Camera Power Button -->
+                <button class="power-btn" id="powerBtn">
+                    <div class="power-ring">
+                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                            <circle cx="12" cy="13" r="4"/>
+                        </svg>
+                    </div>
+                    <span class="power-label">تشغيل الكاميرا</span>
+                </button>
+
+                <!-- Torch Toggle Button -->
+                <button class="torch-btn" id="torchBtn" disabled>
+                    <div class="torch-ring">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                        </svg>
+                    </div>
+                    <span class="torch-label">تشغيل الفلاش</span>
+                </button>
+            </div>
         </div>
 
         <!-- Bottom bar -->

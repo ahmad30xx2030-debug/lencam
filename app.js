@@ -1,6 +1,7 @@
 /**
  * Flashlight App
- * Opens rear camera at maximum resolution with torch/flash enabled.
+ * Opens rear camera at maximum resolution.
+ * Flash/torch is a separate optional toggle.
  * UI can be fully hidden for presentation use.
  */
 
@@ -11,6 +12,7 @@
     const video         = document.getElementById('cameraFeed');
     const uiOverlay     = document.getElementById('uiOverlay');
     const powerBtn      = document.getElementById('powerBtn');
+    const torchBtn      = document.getElementById('torchBtn');
     const hideUIBtn     = document.getElementById('hideUIBtn');
     const restoreBtn    = document.getElementById('restoreBtn');
     const statusBadge   = document.getElementById('statusBadge');
@@ -23,21 +25,24 @@
     const errorMessage  = document.getElementById('errorMessage');
     const errorRetryBtn = document.getElementById('errorRetryBtn');
     const powerLabel    = powerBtn.querySelector('.power-label');
+    const torchLabel    = torchBtn.querySelector('.torch-label');
 
     // ── State ──
     let stream       = null;
     let track        = null;
     let torchOn      = false;
+    let torchSupported = false;
     let uiHidden     = false;
 
     // ── Initialize ──
     function init() {
-        powerBtn.addEventListener('click', toggleFlashlight);
+        powerBtn.addEventListener('click', toggleCamera);
+        torchBtn.addEventListener('click', toggleTorch);
         hideUIBtn.addEventListener('click', hideUI);
         restoreBtn.addEventListener('click', showUI);
         errorRetryBtn.addEventListener('click', () => {
             closeErrorModal();
-            toggleFlashlight();
+            toggleCamera();
         });
 
         // Keyboard shortcuts
@@ -48,6 +53,11 @@
             }
             if (e.code === 'Escape') {
                 if (uiHidden) showUI();
+            }
+            // F key toggles flash
+            if (e.code === 'KeyF' && stream) {
+                e.preventDefault();
+                toggleTorch();
             }
         });
 
@@ -68,8 +78,8 @@
         }
     }
 
-    // ── Flashlight Toggle ──
-    async function toggleFlashlight() {
+    // ── Camera Toggle ──
+    async function toggleCamera() {
         if (stream) {
             stopCamera();
             return;
@@ -96,8 +106,9 @@
             video.srcObject = stream;
             await video.play();
 
-            // Try to enable torch
-            await enableTorch();
+            // Check if torch is supported
+            const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+            torchSupported = !!capabilities.torch;
 
             // Update UI
             const settings = track.getSettings();
@@ -107,12 +118,21 @@
 
             const label = track.label || '';
             if (label) {
-                // Shorten camera label
                 const short = label.length > 30 ? label.substring(0, 28) + '…' : label;
                 cameraText.textContent = short;
             }
 
-            setActive(true);
+            setCameraActive(true);
+
+            // Enable torch button if supported
+            if (torchSupported) {
+                torchBtn.disabled = false;
+                torchBtn.classList.remove('unsupported');
+            } else {
+                torchBtn.disabled = true;
+                torchBtn.classList.add('unsupported');
+                torchLabel.textContent = 'الفلاش غير متاح';
+            }
 
         } catch (err) {
             console.error('Camera error:', err);
@@ -120,23 +140,41 @@
         }
     }
 
+    // ── Toggle Torch ──
+    async function toggleTorch() {
+        if (!track || !torchSupported) return;
+
+        if (torchOn) {
+            await disableTorch();
+        } else {
+            await enableTorch();
+        }
+    }
+
     // ── Enable Torch ──
     async function enableTorch() {
         if (!track) return;
 
-        const capabilities = track.getCapabilities ? track.getCapabilities() : {};
-
-        if (capabilities.torch) {
-            try {
-                await track.applyConstraints({ advanced: [{ torch: true }] });
-                torchOn = true;
-            } catch (e) {
-                console.warn('Could not enable torch:', e);
-                torchOn = false;
-            }
-        } else {
-            console.warn('Torch not supported on this device/camera.');
+        try {
+            await track.applyConstraints({ advanced: [{ torch: true }] });
+            torchOn = true;
+            setTorchActive(true);
+        } catch (e) {
+            console.warn('Could not enable torch:', e);
             torchOn = false;
+        }
+    }
+
+    // ── Disable Torch ──
+    async function disableTorch() {
+        if (!track) return;
+
+        try {
+            await track.applyConstraints({ advanced: [{ torch: false }] });
+            torchOn = false;
+            setTorchActive(false);
+        } catch (e) {
+            console.warn('Could not disable torch:', e);
         }
     }
 
@@ -145,27 +183,47 @@
         if (stream) {
             stream.getTracks().forEach(t => t.stop());
         }
-        stream   = null;
-        track    = null;
-        torchOn  = false;
+        stream         = null;
+        track          = null;
+        torchOn        = false;
+        torchSupported = false;
         video.srcObject = null;
-        setActive(false);
+        setCameraActive(false);
+        setTorchActive(false);
+        torchBtn.disabled = true;
+        torchBtn.classList.remove('unsupported');
+        torchLabel.textContent = 'تشغيل الفلاش';
         resolutionText.textContent = '--';
         cameraText.textContent = 'الكاميرا الخلفية';
     }
 
     // ── UI State Helpers ──
-    function setActive(active) {
+    function setCameraActive(active) {
         if (active) {
             powerBtn.classList.add('active');
             statusBadge.classList.add('active');
-            statusText.textContent = torchOn ? 'الكشاف مفعّل' : 'الكاميرا مفعّلة';
-            powerLabel.textContent = 'إيقاف الكشاف';
+            statusText.textContent = 'الكاميرا مفعّلة';
+            powerLabel.textContent = 'إيقاف الكاميرا';
         } else {
             powerBtn.classList.remove('active');
             statusBadge.classList.remove('active');
             statusText.textContent = 'غير متصل';
-            powerLabel.textContent = 'تشغيل الكشاف';
+            powerLabel.textContent = 'تشغيل الكاميرا';
+        }
+    }
+
+    function setTorchActive(active) {
+        if (active) {
+            torchBtn.classList.add('active');
+            torchLabel.textContent = 'إيقاف الفلاش';
+            // Update status
+            statusText.textContent = 'الكاميرا + الفلاش';
+        } else {
+            torchBtn.classList.remove('active');
+            torchLabel.textContent = 'تشغيل الفلاش';
+            if (stream) {
+                statusText.textContent = 'الكاميرا مفعّلة';
+            }
         }
     }
 

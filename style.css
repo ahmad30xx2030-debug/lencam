@@ -156,7 +156,7 @@ html, body {
 }
 
 /* ============================================
-   Center – Power Button
+   Center – Controls Group
    ============================================ */
 .center-controls {
     display: flex;
@@ -166,11 +166,18 @@ html, body {
     animation: fadeInScale 0.7s 0.15s var(--transition-spring) both;
 }
 
+.controls-group {
+    display: flex;
+    align-items: center;
+    gap: 40px;
+}
+
 @keyframes fadeInScale {
     from { opacity: 0; transform: scale(0.8); }
     to { opacity: 1; transform: scale(1); }
 }
 
+/* ── Camera Power Button ── */
 .power-btn {
     display: flex;
     flex-direction: column;
@@ -209,27 +216,27 @@ html, body {
 }
 
 .power-btn:hover .power-ring {
-    border-color: rgba(251, 191, 36, 0.4);
+    border-color: rgba(52, 211, 153, 0.4);
     transform: scale(1.06);
-    box-shadow: 0 0 40px rgba(251, 191, 36, 0.1);
+    box-shadow: 0 0 40px rgba(52, 211, 153, 0.1);
 }
 
 .power-btn:active .power-ring {
     transform: scale(0.94);
 }
 
-/* Active state */
+/* Camera Active state (green) */
 .power-btn.active .power-ring {
-    border-color: var(--accent);
-    background: var(--accent-soft);
+    border-color: var(--success);
+    background: rgba(52, 211, 153, 0.12);
     box-shadow:
-        0 0 30px var(--accent-glow),
-        0 0 80px rgba(251, 191, 36, 0.15),
-        inset 0 0 30px rgba(251, 191, 36, 0.1);
+        0 0 30px var(--success-glow),
+        0 0 80px rgba(52, 211, 153, 0.1),
+        inset 0 0 30px rgba(52, 211, 153, 0.08);
 }
 
 .power-btn.active .power-ring::before {
-    border-color: rgba(251, 191, 36, 0.2);
+    border-color: rgba(52, 211, 153, 0.2);
     animation: ring-rotate 4s linear infinite;
 }
 
@@ -239,8 +246,8 @@ html, body {
 }
 
 .power-btn.active .power-ring svg {
-    color: var(--accent);
-    filter: drop-shadow(0 0 8px var(--accent-glow));
+    color: var(--success);
+    filter: drop-shadow(0 0 8px var(--success-glow));
 }
 
 .power-label {
@@ -252,6 +259,105 @@ html, body {
 }
 
 .power-btn.active .power-label {
+    color: var(--success);
+}
+
+/* ── Torch Toggle Button ── */
+.torch-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-primary);
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: opacity var(--transition-fast);
+}
+
+.torch-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.35;
+}
+
+.torch-btn.unsupported {
+    opacity: 0.25;
+}
+
+.torch-ring {
+    width: 88px;
+    height: 88px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--glass);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    transition: all var(--transition-smooth);
+    position: relative;
+}
+
+.torch-ring::before {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    transition: all var(--transition-smooth);
+}
+
+.torch-btn:not(:disabled):hover .torch-ring {
+    border-color: rgba(251, 191, 36, 0.4);
+    transform: scale(1.08);
+    box-shadow: 0 0 30px rgba(251, 191, 36, 0.08);
+}
+
+.torch-btn:not(:disabled):active .torch-ring {
+    transform: scale(0.92);
+}
+
+/* Torch Active state (amber/gold) */
+.torch-btn.active .torch-ring {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    box-shadow:
+        0 0 30px var(--accent-glow),
+        0 0 80px rgba(251, 191, 36, 0.15),
+        inset 0 0 30px rgba(251, 191, 36, 0.1);
+}
+
+.torch-btn.active .torch-ring::before {
+    border-color: rgba(251, 191, 36, 0.2);
+    animation: torch-pulse 2s ease-in-out infinite;
+}
+
+@keyframes torch-pulse {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.15);
+    }
+    50% {
+        box-shadow: 0 0 0 8px rgba(251, 191, 36, 0);
+    }
+}
+
+.torch-btn.active .torch-ring svg {
+    color: var(--accent);
+    filter: drop-shadow(0 0 10px var(--accent-glow));
+}
+
+.torch-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    transition: color var(--transition-fast);
+    text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
+
+.torch-btn.active .torch-label {
     color: var(--accent);
 }
 
@@ -442,6 +548,10 @@ html, body {
    Responsive
    ============================================ */
 @media (max-width: 400px) {
+    .controls-group {
+        gap: 24px;
+    }
+
     .power-ring {
         width: 100px;
         height: 100px;
@@ -450,6 +560,16 @@ html, body {
     .power-ring svg {
         width: 52px;
         height: 52px;
+    }
+
+    .torch-ring {
+        width: 72px;
+        height: 72px;
+    }
+
+    .torch-ring svg {
+        width: 38px;
+        height: 38px;
     }
 
     .status-badge {
