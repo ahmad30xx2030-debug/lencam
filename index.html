@@ -3,18 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <meta name="description" content="تطبيق كشاف ضوئي بأعلى دقة كاميرا مع إمكانية إخفاء الواجهة للشرح">
+    <meta name="description" content="تطبيق كشاف ضوئي بأعلى دقة كاميرا مع إمكانية الرسم والتجميد">
     <title>كشاف ضوئي | Flashlight</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- Video fills entire background -->
+    <!-- Video background -->
     <video id="cameraFeed" autoplay playsinline muted></video>
 
-    <!-- Overlay UI -->
+    <!-- Freeze + Draw canvases -->
+    <canvas id="freezeCanvas"></canvas>
+    <canvas id="drawCanvas"></canvas>
+
+    <!-- ═══ Main UI Overlay ═══ -->
     <div id="uiOverlay" class="ui-overlay">
+
         <!-- Top bar -->
         <div class="top-bar">
             <div class="status-badge" id="statusBadge">
@@ -22,81 +27,118 @@
                 <span class="status-text">غير متصل</span>
             </div>
             <div class="top-actions">
-                <button class="icon-btn fullscreen-btn" id="fullscreenBtn" title="شاشة كاملة">
-                    <svg class="fs-expand" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="15 3 21 3 21 9"/>
-                        <polyline points="9 21 3 21 3 15"/>
-                        <line x1="21" y1="3" x2="14" y2="10"/>
-                        <line x1="3" y1="21" x2="10" y2="14"/>
+                <button class="icon-btn" id="fullscreenBtn" title="شاشة كاملة">
+                    <svg class="fs-expand" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/>
+                        <line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
                     </svg>
-                    <svg class="fs-compress" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
-                        <polyline points="4 14 10 14 10 20"/>
-                        <polyline points="20 10 14 10 14 4"/>
-                        <line x1="14" y1="10" x2="21" y2="3"/>
-                        <line x1="3" y1="21" x2="10" y2="14"/>
+                    <svg class="fs-compress" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+                        <polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/>
+                        <line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/>
                     </svg>
                 </button>
-                <button class="icon-btn hide-btn" id="hideUIBtn" title="إخفاء الواجهة (مسافة)">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <button class="icon-btn" id="hideUIBtn" title="إخفاء الواجهة">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                        <circle cx="12" cy="12" r="3"/>
-                        <line x1="1" y1="1" x2="23" y2="23" stroke-width="2.5"/>
+                        <circle cx="12" cy="12" r="3"/><line x1="1" y1="1" x2="23" y2="23" stroke-width="2.5"/>
                     </svg>
                 </button>
             </div>
         </div>
 
-        <!-- Center controls -->
-        <div class="center-controls">
-            <div class="controls-group">
-                <!-- Camera Power Button -->
-                <button class="power-btn" id="powerBtn">
-                    <div class="power-ring">
-                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                            <circle cx="12" cy="13" r="4"/>
-                        </svg>
-                    </div>
-                    <span class="power-label">تشغيل الكاميرا</span>
-                </button>
-
-                <!-- Torch Toggle Button -->
-                <button class="torch-btn" id="torchBtn" disabled>
-                    <div class="torch-ring">
-                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-                        </svg>
-                    </div>
-                    <span class="torch-label">تشغيل الفلاش</span>
-                </button>
-            </div>
+        <!-- ═══ Right side controls ═══ -->
+        <div class="side-controls right-side" id="sideControls">
+            <!-- Camera -->
+            <button class="side-btn" id="powerBtn" title="تشغيل الكاميرا">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                    <circle cx="12" cy="13" r="4"/>
+                </svg>
+            </button>
+            <!-- Freeze -->
+            <button class="side-btn" id="freezeBtn" disabled title="تجميد الشاشة">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="6" y="4" width="4" height="16" rx="1"/>
+                    <rect x="14" y="4" width="4" height="16" rx="1"/>
+                </svg>
+            </button>
+            <!-- Torch -->
+            <button class="side-btn" id="torchBtn" disabled title="تشغيل الفلاش">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                </svg>
+            </button>
         </div>
 
-        <!-- Bottom bar -->
+        <!-- ═══ Left side: Zoom slider ═══ -->
+        <div class="side-controls left-side" id="zoomControls">
+            <span class="zoom-label" id="zoomLabel">1×</span>
+            <input type="range" class="zoom-slider" id="zoomSlider" min="1" max="10" step="0.1" value="1" orient="vertical" disabled>
+        </div>
+
+        <!-- ═══ Bottom bar ═══ -->
         <div class="bottom-bar">
+            <!-- Lens selector -->
+            <div class="lens-row" id="lensRow">
+                <button class="lens-btn active" data-lens="main" id="lensMain" title="الكاميرا الرئيسية">1×</button>
+                <button class="lens-btn" data-lens="wide" id="lensWide" title="زاوية واسعة">0.5×</button>
+            </div>
             <div class="info-row">
                 <div class="info-chip" id="resolutionChip">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
                     <span id="resolutionText">--</span>
                 </div>
                 <div class="info-chip" id="cameraChip">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
                     <span id="cameraText">الكاميرا الخلفية</span>
                 </div>
             </div>
-            <p class="hint-text" id="hintText">اضغط <kbd>مسافة</kbd> لإخفاء/إظهار الواجهة</p>
         </div>
     </div>
 
-    <!-- Restore button (shown when UI is hidden) -->
-    <button class="restore-btn" id="restoreBtn" title="إظهار الواجهة (مسافة)">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-            <circle cx="12" cy="12" r="3"/>
+    <!-- ═══ Drawing Toolbar (freeze mode only) ═══ -->
+    <div class="draw-toolbar" id="drawToolbar">
+        <div class="draw-toolbar-inner">
+            <div class="draw-colors" id="drawColors">
+                <button class="color-swatch active" data-color="#ff3b30" style="background:#ff3b30"></button>
+                <button class="color-swatch" data-color="#fbbf24" style="background:#fbbf24"></button>
+                <button class="color-swatch" data-color="#34d399" style="background:#34d399"></button>
+                <button class="color-swatch" data-color="#3b82f6" style="background:#3b82f6"></button>
+                <button class="color-swatch" data-color="#ffffff" style="background:#ffffff"></button>
+            </div>
+            <div class="draw-divider"></div>
+            <div class="draw-sizes" id="drawSizes">
+                <button class="size-btn active" data-size="3"><span class="size-dot" style="width:6px;height:6px"></span></button>
+                <button class="size-btn" data-size="6"><span class="size-dot" style="width:10px;height:10px"></span></button>
+                <button class="size-btn" data-size="12"><span class="size-dot" style="width:16px;height:16px"></span></button>
+            </div>
+            <div class="draw-divider"></div>
+            <div class="draw-actions">
+                <button class="draw-action-btn" id="eraserBtn" title="ممحاة">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 20H7L3 16c-.8-.8-.8-2 0-2.8L14.6 1.6c.8-.8 2-.8 2.8 0l5 5c.8.8.8 2 0 2.8L12 20"/></svg>
+                </button>
+                <button class="draw-action-btn" id="undoBtn" title="تراجع">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                </button>
+                <button class="draw-action-btn" id="clearDrawBtn" title="مسح الكل">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </button>
+                <!-- Unfreeze -->
+                <button class="draw-action-btn unfreeze-btn" id="unfreezeBtn" title="إلغاء التجميد">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Restore button -->
+    <button class="restore-btn" id="restoreBtn" title="إظهار الواجهة">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
         </svg>
     </button>
 
-    <!-- Error/Permission modal -->
+    <!-- Error modal -->
     <div class="modal-overlay" id="errorModal">
         <div class="modal-card">
             <div class="modal-icon error">
