@@ -54,6 +54,7 @@ let allDevices=[], hasMultiCam=false;
 
 // Drawing
 let dColor='#ff3b30', dSize=3, isEraser=false, drawing=false;
+let points=[];  // collected points for smooth curves
 let lx=0, ly=0, dHistory=[];
 
 // ═══════════════════════════
@@ -138,7 +139,13 @@ async function enumCams(){
         const d=await navigator.mediaDevices.enumerateDevices();
         allDevices=d.filter(x=>x.kind==='videoinput');
         hasMultiCam=allDevices.length>1;
-        if(!hasMultiCam) lensWide.style.display='none';
+        // Always show wide lens button — user can try it
+        // Only hide if we're certain there's exactly 1 camera AND labels are available
+        if(allDevices.length===1 && allDevices[0].label){
+            lensWide.style.display='none';
+        } else {
+            lensWide.style.display='';
+        }
     }catch(_){}
 }
 
@@ -151,7 +158,7 @@ async function startCam(){
     try{
         const fm = currentLens==='wide' ? {exact:'environment'} : {ideal:'environment'};
         const c = {
-            video:{facingMode:fm, width:{ideal:9999}, height:{ideal:9999}, frameRate:{ideal:60}},
+            video:{facingMode:fm, width:{ideal:9999}, height:{ideal:9999}, frameRate:{ideal:60, min:30}},
             audio:false
         };
         if(currentLens==='wide' && hasMultiCam){
@@ -316,14 +323,18 @@ function pos(e){
 
 function onDrawStart(e){
     if(!frozen) return; drawing=true;
-    const p=pos(e); lx=p.x; ly=p.y;
+    const p=pos(e);
+    points=[p];
+    lx=p.x; ly=p.y;
     dHistory.push(drawCtx.getImageData(0,0,drawCanvas.width,drawCanvas.height));
     if(dHistory.length>50) dHistory.shift();
 }
 function onDraw(e){
     if(!drawing||!frozen) return;
     const p=pos(e);
-    drawCtx.beginPath(); drawCtx.moveTo(lx,ly); drawCtx.lineTo(p.x,p.y);
+    points.push(p);
+
+    // Setup brush
     if(isEraser){
         drawCtx.globalCompositeOperation='destination-out';
         drawCtx.strokeStyle='rgba(0,0,0,1)'; drawCtx.lineWidth=dSize*4;
@@ -331,10 +342,43 @@ function onDraw(e){
         drawCtx.globalCompositeOperation='source-over';
         drawCtx.strokeStyle=dColor; drawCtx.lineWidth=dSize;
     }
-    drawCtx.lineCap='round'; drawCtx.lineJoin='round'; drawCtx.stroke();
+    drawCtx.lineCap='round'; drawCtx.lineJoin='round';
+
+    if(points.length < 3){
+        // Not enough points yet, draw a simple line
+        drawCtx.beginPath();
+        drawCtx.moveTo(lx,ly);
+        drawCtx.lineTo(p.x,p.y);
+        drawCtx.stroke();
+    } else {
+        // Smooth curve using quadratic bezier through midpoints
+        // Redraw from last 3 points for smooth connection
+        const len=points.length;
+        const p0=points[len-3];
+        const p1=points[len-2];
+        const p2=points[len-1];
+        const mid1={x:(p0.x+p1.x)/2, y:(p0.y+p1.y)/2};
+        const mid2={x:(p1.x+p2.x)/2, y:(p1.y+p2.y)/2};
+        drawCtx.beginPath();
+        drawCtx.moveTo(mid1.x, mid1.y);
+        drawCtx.quadraticCurveTo(p1.x, p1.y, mid2.x, mid2.y);
+        drawCtx.stroke();
+    }
     lx=p.x; ly=p.y;
 }
-function onDrawEnd(){drawing=false;}
+function onDrawEnd(){
+    // Draw final segment to the last point
+    if(drawing && points.length>=2){
+        const p1=points[points.length-2];
+        const p2=points[points.length-1];
+        drawCtx.beginPath();
+        drawCtx.moveTo(p1.x,p1.y);
+        drawCtx.lineTo(p2.x,p2.y);
+        drawCtx.stroke();
+    }
+    drawing=false;
+    points=[];
+}
 
 function onTouchStart(e){if(!frozen) return; e.preventDefault(); onDrawStart(e.touches[0]);}
 function onTouchMove(e){if(!frozen||!drawing) return; e.preventDefault(); onDraw(e.touches[0]);}
