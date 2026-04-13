@@ -268,20 +268,47 @@ function toggleFreeze(){
 
 function freeze(){
     if(!stream||!track) return;
-    const vw=video.videoWidth, vh=video.videoHeight;
-    frzCanvas.width=vw; frzCanvas.height=vh;
-    frzCtx.drawImage(video,0,0,vw,vh);
-    drawCanvas.width=vw; drawCanvas.height=vh;
-    drawCtx.clearRect(0,0,vw,vh);
+    const dpr = window.devicePixelRatio || 1;
+    const sw = window.innerWidth;
+    const sh = window.innerHeight;
+    const cw = sw * dpr;
+    const ch = sh * dpr;
 
-    // Show frozen frame + draw surface
+    // Set both canvases to screen pixel size
+    frzCanvas.width = cw; frzCanvas.height = ch;
+    frzCanvas.style.width = sw + 'px';
+    frzCanvas.style.height = sh + 'px';
+
+    drawCanvas.width = cw; drawCanvas.height = ch;
+    drawCanvas.style.width = sw + 'px';
+    drawCanvas.style.height = sh + 'px';
+
+    // Draw video frame with "cover" fit onto freeze canvas
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    const vAspect = vw / vh;
+    const sAspect = cw / ch;
+    let dx, dy, dw, dh;
+    if (vAspect > sAspect) {
+        // Video is wider — crop sides
+        dh = ch; dw = ch * vAspect;
+        dx = (cw - dw) / 2; dy = 0;
+    } else {
+        // Video is taller — crop top/bottom
+        dw = cw; dh = cw / vAspect;
+        dx = 0; dy = (ch - dh) / 2;
+    }
+    frzCtx.drawImage(video, dx, dy, dw, dh);
+
+    // Scale draw context for DPR so strokes are crisp
+    drawCtx.clearRect(0, 0, cw, ch);
+    drawCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // Show
     frzCanvas.classList.add('on');
     drawCanvas.classList.add('on');
-
-    // Show draw toolbar
     drawBar.classList.add('on');
 
-    // Hide all other UI
     topBar.classList.add('hide');
     rightPanel.classList.add('hide');
     leftPanel.classList.add('hide');
@@ -306,6 +333,7 @@ function unfreeze(){
     frozen=false;
     freezeBtn.classList.remove('f-on');
     if(stream) statusText.textContent=torchOn?'الكاميرا + الفلاش':'الكاميرا مفعّلة';
+    drawCtx.setTransform(1,0,0,1,0,0);
     drawCtx.clearRect(0,0,drawCanvas.width,drawCanvas.height);
     dHistory=[];
 }
@@ -314,66 +342,81 @@ function unfreeze(){
 //  DRAWING
 // ═══════════════════════════
 function pos(e){
-    const r=drawCanvas.getBoundingClientRect();
-    return{
-        x:(e.clientX-r.left)*(drawCanvas.width/r.width),
-        y:(e.clientY-r.top)*(drawCanvas.height/r.height)
-    };
+    // Direct CSS pixel coords — the drawCtx has a DPR transform
+    // so CSS pixels map 1:1 with the finger/mouse position
+    const r = drawCanvas.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+
+function setupBrush(){
+    if(isEraser){
+        drawCtx.globalCompositeOperation='destination-out';
+        drawCtx.strokeStyle='rgba(0,0,0,1)';
+        drawCtx.lineWidth=dSize*4;
+    }else{
+        drawCtx.globalCompositeOperation='source-over';
+        drawCtx.strokeStyle=dColor;
+        drawCtx.lineWidth=dSize;
+    }
+    drawCtx.lineCap='round';
+    drawCtx.lineJoin='round';
 }
 
 function onDrawStart(e){
-    if(!frozen) return; drawing=true;
+    if(!frozen) return;
+    drawing=true;
     const p=pos(e);
     points=[p];
-    lx=p.x; ly=p.y;
+
+    // Save state for undo (need to reset transform for getImageData)
+    const dpr = window.devicePixelRatio || 1;
+    drawCtx.setTransform(1,0,0,1,0,0);
     dHistory.push(drawCtx.getImageData(0,0,drawCanvas.width,drawCanvas.height));
     if(dHistory.length>50) dHistory.shift();
+    drawCtx.setTransform(dpr,0,0,dpr,0,0);
+
+    // Draw a dot at the starting point
+    setupBrush();
+    drawCtx.beginPath();
+    drawCtx.arc(p.x, p.y, (isEraser ? dSize*2 : dSize/2), 0, Math.PI*2);
+    drawCtx.fill();
 }
+
 function onDraw(e){
     if(!drawing||!frozen) return;
     const p=pos(e);
     points.push(p);
+    setupBrush();
 
-    // Setup brush
-    if(isEraser){
-        drawCtx.globalCompositeOperation='destination-out';
-        drawCtx.strokeStyle='rgba(0,0,0,1)'; drawCtx.lineWidth=dSize*4;
-    }else{
-        drawCtx.globalCompositeOperation='source-over';
-        drawCtx.strokeStyle=dColor; drawCtx.lineWidth=dSize;
-    }
-    drawCtx.lineCap='round'; drawCtx.lineJoin='round';
-
-    if(points.length < 3){
-        // Not enough points yet, draw a simple line
+    const len=points.length;
+    if(len < 3){
+        // Simple line for first 2 points
         drawCtx.beginPath();
-        drawCtx.moveTo(lx,ly);
-        drawCtx.lineTo(p.x,p.y);
+        drawCtx.moveTo(points[len-2].x, points[len-2].y);
+        drawCtx.lineTo(p.x, p.y);
         drawCtx.stroke();
     } else {
-        // Smooth curve using quadratic bezier through midpoints
-        // Redraw from last 3 points for smooth connection
-        const len=points.length;
-        const p0=points[len-3];
-        const p1=points[len-2];
-        const p2=points[len-1];
-        const mid1={x:(p0.x+p1.x)/2, y:(p0.y+p1.y)/2};
-        const mid2={x:(p1.x+p2.x)/2, y:(p1.y+p2.y)/2};
+        // Smooth quadratic bezier through midpoints
+        const a=points[len-3];
+        const b=points[len-2];
+        const c=points[len-1];
+        const mx1=(a.x+b.x)/2, my1=(a.y+b.y)/2;
+        const mx2=(b.x+c.x)/2, my2=(b.y+c.y)/2;
         drawCtx.beginPath();
-        drawCtx.moveTo(mid1.x, mid1.y);
-        drawCtx.quadraticCurveTo(p1.x, p1.y, mid2.x, mid2.y);
+        drawCtx.moveTo(mx1, my1);
+        drawCtx.quadraticCurveTo(b.x, b.y, mx2, my2);
         drawCtx.stroke();
     }
-    lx=p.x; ly=p.y;
 }
+
 function onDrawEnd(){
-    // Draw final segment to the last point
     if(drawing && points.length>=2){
-        const p1=points[points.length-2];
-        const p2=points[points.length-1];
+        setupBrush();
+        const a=points[points.length-2];
+        const b=points[points.length-1];
         drawCtx.beginPath();
-        drawCtx.moveTo(p1.x,p1.y);
-        drawCtx.lineTo(p2.x,p2.y);
+        drawCtx.moveTo(a.x, a.y);
+        drawCtx.lineTo(b.x, b.y);
         drawCtx.stroke();
     }
     drawing=false;
@@ -385,11 +428,17 @@ function onTouchMove(e){if(!frozen||!drawing) return; e.preventDefault(); onDraw
 
 function undo(){
     if(!dHistory.length) return;
+    const dpr = window.devicePixelRatio || 1;
+    drawCtx.setTransform(1,0,0,1,0,0);
     drawCtx.putImageData(dHistory.pop(),0,0);
+    drawCtx.setTransform(dpr,0,0,dpr,0,0);
 }
 function clearDraw(){
+    const dpr = window.devicePixelRatio || 1;
+    drawCtx.setTransform(1,0,0,1,0,0);
     dHistory.push(drawCtx.getImageData(0,0,drawCanvas.width,drawCanvas.height));
     drawCtx.clearRect(0,0,drawCanvas.width,drawCanvas.height);
+    drawCtx.setTransform(dpr,0,0,dpr,0,0);
 }
 
 // ═══════════════════════════
